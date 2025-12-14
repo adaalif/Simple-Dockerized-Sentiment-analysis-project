@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Load Tester</title>
+    <style>
+        .loader {
+            border: 16px solid #f3f3f3;
+            border-radius: 50%;
+            border-top: 16px solid #3498db;
+            width: 120px;
+            height: 120px;
+            animation: spin 2s linear infinite;
+            display: none; /* Hidden by default */
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <h1>Load Tester</h1>
+    <form id="loadTestForm">
+        <label for="duration">Duration (seconds):</label>
+        <input type="number" id="duration" name="duration" value="10">
+        <br>
+        <label for="threads">Number of Threads:</label>
+        <input type="number" id="threads" name="threads" value="5">
+        <br><br>
+        <button type="submit">Start Load Test</button>
+    </form>
+
+    <h2>Results</h2>
+    <div class="loader" id="loading"></div>
+    <div id="status">Idle</div>
+    <div id="results"></div>
+
+    <script>
+        const form = document.getElementById('loadTestForm');
+        const statusDiv = document.getElementById('status');
+        const resultsDiv = document.getElementById('results');
+        const loadingDiv = document.getElementById('loading');
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const duration = document.getElementById('duration').value;
+            const threads = document.getElementById('threads').value;
+
+            statusDiv.textContent = 'Starting test...';
+            resultsDiv.innerHTML = '';
+            loadingDiv.style.display = 'block';
+
+            try {
+                const response = await fetch(`/load-test?duration=${duration}&threads=${threads}`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    statusDiv.textContent = 'Test in progress...';
+                    pollStatus();
+                } else {
+                    statusDiv.textContent = `Error: ${data.message}`;
+                    loadingDiv.style.display = 'none';
+                }
+            } catch (error) {
+                statusDiv.textContent = `Error: ${error.message}`;
+                loadingDiv.style.display = 'none';
+            }
+        });
+
+        function pollStatus() {
+            const interval = setInterval(async () => {
+                try {
+                    const response = await fetch('/load-test/status');
+                    const data = await response.json();
+
+                    statusDiv.textContent = `Status: ${data.status}`;
+                    if (data.status === "finished") {
+                        clearInterval(interval);
+                        loadingDiv.style.display = 'none';
+                        let resultsHTML = `
+                            <p>Total successful requests: ${data.result.successful_requests}</p>
+                            <p>Duration: ${data.result.duration_seconds} seconds</p>
+                            <p>Calculated RPM (Requests Per Minute): ${data.result.rpm.toFixed(2)}</p>
+                        `;
+                        resultsDiv.innerHTML = resultsHTML;
+                    } else if (data.status === "error") {
+                        clearInterval(interval);
+                        loadingDiv.style.display = 'none';
+                        resultsDiv.innerHTML = `<p>Error: ${data.message}</p>`;
+                    }
+                } catch (error) {
+                    clearInterval(interval);
+                    loadingDiv.style.display = 'none';
+                    statusDiv.textContent = 'Error polling status.';
+                }
+            }, 2000);
+        }
+    </script>
+</body>
+</html>

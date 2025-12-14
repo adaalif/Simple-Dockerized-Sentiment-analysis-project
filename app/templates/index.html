@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sentiment Analysis</title>
+    <style>
+        body { font-family: Arial, sans-serif; }
+        .container { max-width: 600px; margin: 50px auto; padding: 20px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        textarea { width: 100%; }
+        .result { margin-top: 20px; padding: 10px; border-radius: 5px; }
+        .Positive { background-color: #d4edda; }
+        .Negative { background-color: #f8d7da; }
+        .Neutral { background-color: #e2e3e5; }
+        .load-test-form { margin-top: 30px; padding-top: 20px; border-top: 1px solid #ccc; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Sentiment Analysis</h1>
+        <form action="/predict" method="post">
+            <textarea name="text" rows="4" placeholder="Enter text for sentiment analysis...">{{ text or '' }}</textarea>
+            <button type="submit">Analyze</button>
+        </form>
+
+        {% if sentiment %}
+        <div class="result {{ sentiment }}">
+            <p>The sentiment of the text is: <strong>{{ sentiment }}</strong></p>
+        </div>
+        {% endif %}
+
+        <div class="load-test-form">
+            <h2>Load Test</h2>
+            <form id="loadTestForm">
+                <label for="duration">Duration (seconds):</label>
+                <input type="number" id="duration" name="duration" value="60">
+                <label for="threads">Number of Threads:</label>
+                <input type="number" id="threads" name="threads" value="10">
+                <button type="submit">Start Load Test</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('loadTestForm').addEventListener('submit', function(event) {
+            event.preventDefault();
+            
+            const duration = document.getElementById('duration').value;
+            const threads = document.getElementById('threads').value;
+            
+            const formData = new FormData();
+            formData.append('duration', duration);
+            formData.append('threads', threads);
+
+            fetch('/load-test?duration=' + duration + '&threads=' + threads, {
+                method: 'POST',
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert(data.message);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while starting the load test.');
+            });
+        });
+    </script>
+</body>
+</html>
