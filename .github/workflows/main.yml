@@ -9,6 +9,10 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      TWITTER_EMAIL: ${{ secrets.TWITTER_EMAIL }}
+      TWITTER_USERNAME: ${{ secrets.TWITTER_USERNAME }}
+      TWITTER_PASSWORD: ${{ secrets.TWITTER_PASSWORD }}
     
     steps:
     - uses: actions/checkout@v3
@@ -39,6 +43,10 @@ jobs:
     needs: test # This job runs only after the 'test' job succeeds
     # This job runs only on push events to the main branch
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    env:
+      TWITTER_EMAIL: ${{ secrets.TWITTER_EMAIL }}
+      TWITTER_USERNAME: ${{ secrets.TWITTER_USERNAME }}
+      TWITTER_PASSWORD: ${{ secrets.TWITTER_PASSWORD }}
     
     steps:
     - uses: actions/checkout@v3
