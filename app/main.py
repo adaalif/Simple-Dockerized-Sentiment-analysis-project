@@ -7,7 +7,6 @@ from collections import Counter
 # Import our new and existing modules
 from app.model import predict_sentiment
 from app.twitter_client import get_tweets
-from app.config import TWITTER_BEARER_TOKEN
 
 BASE_DIR = Path(__file__).resolve(strict=True).parent
 
@@ -29,11 +28,6 @@ async def get_topic_sentiment(topic: str):
     - Predicts sentiment for each tweet.
     - Aggregates and returns the results.
     """
-    if not TWITTER_BEARER_TOKEN:
-        return {
-            "error": "Twitter API credentials are not configured on the server."
-        }
-
     # 1. Get tweets
     tweets = get_tweets(topic, count=100)
     
