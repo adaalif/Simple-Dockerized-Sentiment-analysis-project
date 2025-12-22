@@ -6,3 +6,7 @@ pandas
 datasets
 jinja2
 python-multipart
+pytest
+httpx
+twikit
+python-dotenv

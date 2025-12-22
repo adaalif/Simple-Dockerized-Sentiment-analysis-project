@@ -3,67 +3,269 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sentiment Analysis</title>
+    <title>Real-Time Topic Sentiment</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body { font-family: Arial, sans-serif; }
-        .container { max-width: 600px; margin: 50px auto; padding: 20px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
-        textarea { width: 100%; }
-        .result { margin-top: 20px; padding: 10px; border-radius: 5px; }
-        .Positive { background-color: #d4edda; }
-        .Negative { background-color: #f8d7da; }
-        .Neutral { background-color: #e2e3e5; }
-        .load-test-form { margin-top: 30px; padding-top: 20px; border-top: 1px solid #ccc; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f0f2f5;
+            color: #1c1e21;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            width: 100%;
+            max-width: 800px;
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+        h1 {
+            color: #1877f2;
+            margin-bottom: 1.5rem;
+        }
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 1.5rem;
+        }
+        #topic-input {
+            flex-grow: 1;
+            padding: 0.75rem;
+            border: 1px solid #dddfe2;
+            border-radius: 6px;
+            font-size: 1rem;
+        }
+        #analyze-btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 6px;
+            background-color: #1877f2;
+            color: white;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        #analyze-btn:hover {
+            background-color: #166fe5;
+        }
+        #analyze-btn:disabled {
+            background-color: #a0bdf5;
+            cursor: not-allowed;
+        }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #1877f2;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+            display: none; /* Initially hidden */
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .results-container {
+            text-align: left;
+            margin-top: 2rem;
+        }
+        #chart-container {
+            margin-bottom: 2rem;
+        }
+        .tweet-list {
+            max-height: 300px;
+            overflow-y: auto;
+            border-top: 1px solid #eee;
+        }
+        .tweet {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        .tweet-sentiment {
+            font-weight: bold;
+            padding: 2px 6px;
+            border-radius: 4px;
+            color: white;
+            margin-right: 8px;
+        }
+        .Positive { background-color: #4CAF50; }
+        .Negative { background-color: #F44336; }
+        .Neutral { background-color: #607D8B; }
+        .error { color: #F44336; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Sentiment Analysis</h1>
-        <form action="/predict" method="post">
-            <textarea name="text" rows="4" placeholder="Enter text for sentiment analysis...">{{ text or '' }}</textarea>
-            <button type="submit">Analyze</button>
-        </form>
-
-        {% if sentiment %}
-        <div class="result {{ sentiment }}">
-            <p>The sentiment of the text is: <strong>{{ sentiment }}</strong></p>
+        <h1>Public Sentiment Analyzer</h1>
+        <p>Enter a topic (like "OpenAI" or "#AI") to gauge public sentiment from recent tweets.</p>
+        <div class="input-group">
+            <input type="text" id="topic-input" placeholder="Enter a topic...">
+            <button id="analyze-btn">Analyze</button>
         </div>
-        {% endif %}
-
-        <div class="load-test-form">
-            <h2>Load Test</h2>
-            <form id="loadTestForm">
-                <label for="duration">Duration (seconds):</label>
-                <input type="number" id="duration" name="duration" value="60">
-                <label for="threads">Number of Threads:</label>
-                <input type="number" id="threads" name="threads" value="10">
-                <button type="submit">Start Load Test</button>
-            </form>
+        <div id="loader" class="loader"></div>
+        <div id="results-container" class="results-container" style="display: none;">
+            <div id="chart-container">
+                <canvas id="sentiment-chart"></canvas>
+            </div>
+            <h3>Analyzed Tweets:</h3>
+            <div id="tweet-list" class="tweet-list"></div>
         </div>
+        <div id="error-message" class="error"></div>
     </div>
 
     <script>
-        document.getElementById('loadTestForm').addEventListener('submit', function(event) {
-            event.preventDefault();
-            
-            const duration = document.getElementById('duration').value;
-            const threads = document.getElementById('threads').value;
-            
-            const formData = new FormData();
-            formData.append('duration', duration);
-            formData.append('threads', threads);
+        const topicInput = document.getElementById('topic-input');
+        const analyzeBtn = document.getElementById('analyze-btn');
+        const loader = document.getElementById('loader');
+        const resultsContainer = document.getElementById('results-container');
+        const tweetList = document.getElementById('tweet-list');
+        const errorMessage = document.getElementById('error-message');
+        const chartContainer = document.getElementById('chart-container');
+        let sentimentChart = null;
 
-            fetch('/load-test?duration=' + duration + '&threads=' + threads, {
-                method: 'POST',
-            })
-            .then(response => response.json())
-            .then(data => {
-                alert(data.message);
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('An error occurred while starting the load test.');
-            });
+        analyzeBtn.addEventListener('click', async () => {
+            const topic = topicInput.value.trim();
+            if (!topic) {
+                displayError("Please enter a topic.");
+                return;
+            }
+
+            // --- UI Reset and Loading State ---
+            setLoading(true);
+            clearResults();
+
+            try {
+                // --- API Call ---
+                const response = await fetch(`/api/sentiment/${encodeURIComponent(topic)}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                const data = await response.json();
+
+                // --- Render Results ---
+                if (data.error) {
+                    displayError(data.error);
+                } else if (data.tweets.length === 0) {
+                    displayError(data.message || "No tweets were found for this topic.");
+                } else {
+                    renderResults(data);
+                }
+
+            } catch (error) {
+                console.error("Fetch error:", error);
+                displayError("An error occurred while fetching data. Check the console for details.");
+            } finally {
+                setLoading(false);
+            }
         });
+        
+        topicInput.addEventListener('keyup', (event) => {
+            if (event.key === 'Enter') {
+                analyzeBtn.click();
+            }
+        });
+
+        function setLoading(isLoading) {
+            if (isLoading) {
+                loader.style.display = 'block';
+                analyzeBtn.disabled = true;
+            } else {
+                loader.style.display = 'none';
+                analyzeBtn.disabled = false;
+            }
+        }
+
+        function clearResults() {
+            errorMessage.textContent = '';
+            resultsContainer.style.display = 'none';
+            tweetList.innerHTML = '';
+            if (sentimentChart) {
+                sentimentChart.destroy();
+            }
+        }
+
+        function displayError(message) {
+            errorMessage.textContent = message;
+        }
+
+        function renderResults(data) {
+            resultsContainer.style.display = 'block';
+
+            // --- Render Chart ---
+            const ctx = document.getElementById('sentiment-chart').getContext('2d');
+            const sentimentData = {
+                'Positive': data.results.Positive || 0,
+                'Negative': data.results.Negative || 0,
+                'Neutral': data.results.Neutral || 0
+            };
+            
+            sentimentChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(sentimentData),
+                    datasets: [{
+                        label: `Sentiment for "${data.topic}"`,
+                        data: Object.values(sentimentData),
+                        backgroundColor: [
+                            'rgba(76, 175, 80, 0.6)',
+                            'rgba(244, 67, 54, 0.6)',
+                            'rgba(96, 125, 139, 0.6)'
+                        ],
+                        borderColor: [
+                            'rgba(76, 175, 80, 1)',
+                            'rgba(244, 67, 54, 1)',
+                            'rgba(96, 125, 139, 1)'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                precision: 0 // Ensure y-axis labels are integers
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    }
+                }
+            });
+
+            // --- Render Tweet List ---
+            tweetList.innerHTML = data.tweets.map(tweet => `
+                <div class="tweet">
+                    <span class="tweet-sentiment ${tweet.sentiment}">${tweet.sentiment}</span>
+                    <span>${escapeHTML(tweet.text)}</span>
+                </div>
+            `).join('');
+        }
+        
+        function escapeHTML(str) {
+            return str.replace(/[&<>"']/g, function(match) {
+                return {
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#39;'
+                }[match];
+            });
+        }
+
     </script>
 </body>
 </html>
